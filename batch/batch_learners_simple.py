@@ -82,7 +82,7 @@ class fittedQ:
             epo = 200
         else: 
             epo = 40
-        self.Q.fit(normalize_input(self, X),  Y, nb_epoch=epo, batch_size=32)
+        self.Q.fit(normalize_input(self, X),  Y, nb_epoch=epo, batch_size=128)
         self.t +=1
             
     def predict(self, states):
