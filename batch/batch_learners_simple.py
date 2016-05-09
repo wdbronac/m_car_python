@@ -78,7 +78,11 @@ class fittedQ:
                 #qvals[:,a] = normalize_back_output(self, self.Q.predict(normalize_input(self, np.concatenate((next_states, a*np.ones((n,1)))  ,1)   )).reshape((1,n)))
                 qvals[:,a] =  self.Q.predict(normalize_input(self, np.concatenate((next_states, a*np.ones((n,1)))  ,1)   )).reshape((1,n))
             Y = rewards + self.gamma*(1-eoes)*np.max(qvals, 1)
-        self.Q.fit(normalize_input(self, X),  Y, nb_epoch=50, batch_size=32)
+        if (self.t ==0):
+            epo = 200
+        else: 
+            epo = 40
+        self.Q.fit(normalize_input(self, X),  Y, nb_epoch=epo, batch_size=32)
         self.t +=1
             
     def predict(self, states):
