@@ -46,15 +46,15 @@ class simulator:
         """
         next_state = np.zeros(2)
         eoe = False
-        r = -0.05
+        r = -0.1
         next_state[1] = state[1] + 0.001*(action-1) -0.0025*np.cos(3*state[0])
         next_state[0] = state[0] + next_state[1]
         if next_state[0] > self.position[1]:
-            r = 0.5
+            r = 1
             eoe = True
         if next_state[0] < self.position[0]:
             next_state[1] = 0
-            r = -0.5
+            r = -1
         next_state[0] = min(max(next_state[0], self.position[0]), self.position[1])        
         next_state[1] = min(max(next_state[1], self.velocity[0]), self.velocity[1])
         return next_state, r, eoe

@@ -2,13 +2,13 @@
 """
 Module batch_learners
 """
-
 import numpy as np
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression
 from keras.models import Sequential
 from keras.layers.core import Dense
 from keras.optimizers import sgd
+from keras.optimizers import RMSprop
 
 class fittedQ:
     """
@@ -33,13 +33,18 @@ class fittedQ:
         #self.t = 0 # current iteration
 	self.na  = 3;
         self.nEpochs = 3000
-	self.hidden_size = 8
+	self.hidden_size = 256
+        self.mean_labels =0 
+        self.mean_states = np.zeros((1,3))
+        self.std_labels = 0
+        self.std_states = np.zeros((1,3))
         if regressor is None:
             regressor = Sequential()
-            regressor.add(Dense(self.hidden_size, input_shape=(3,), activation='tanh', init='glorot_uniform')) #ici je triche un peu je sais qu'il y en a 2
-            regressor.add(Dense(self.hidden_size, activation='tanh',  init='glorot_uniform'))
+            regressor.add(Dense(self.hidden_size, input_shape=(3,), activation='relu', init='glorot_uniform')) #ici je triche un peu je sais qu'il y en a 2
+            regressor.add(Dense(self.hidden_size, activation='linear',  init='glorot_uniform'))
             regressor.add(Dense(1)) # je triche pcq je sais deja le nb d actions
-            regressor.compile(sgd(lr=0.00001 ,momentum=0.9, nesterov=True), "mse")
+            #regressor.compile(sgd(lr=0.1 ,momentum=0.9, nesterov=True), "mse")
+            regressor.compile(RMSprop(lr=0.0001 ,rho=0.9, epsilon = 1e-06), "mse")
         self.Q = regressor
         self.gamma = gamma
         self.t = 0 # current iteration
@@ -65,14 +70,15 @@ class fittedQ:
         self.na = na
         qvals = np.zeros((n,na))
         print("fittedQ: iteration "+str(self.t))
-        X = normalize(np.concatenate((states, actions.reshape((n,1))), 1))
+        X = np.concatenate((states, actions.reshape((n,1))), 1)
         if self.t==0:
             Y = rewards
         else:
             for a in range(na):
-                qvals[:,a] = self.Q.predict(normalize(np.concatenate((next_states, a*np.ones((n,1))),1))).reshape((1,n))
+                #qvals[:,a] = normalize_back_output(self, self.Q.predict(normalize_input(self, np.concatenate((next_states, a*np.ones((n,1)))  ,1)   )).reshape((1,n)))
+                qvals[:,a] =  self.Q.predict(normalize_input(self, np.concatenate((next_states, a*np.ones((n,1)))  ,1)   )).reshape((1,n))
             Y = rewards + self.gamma*(1-eoes)*np.max(qvals, 1)
-        self.Q.fit(X, Y, nb_epoch=40, batch_size=32)
+        self.Q.fit(normalize_input(self, X),  Y, nb_epoch=50, batch_size=32)
         self.t +=1
             
     def predict(self, states):
@@ -84,7 +90,7 @@ class fittedQ:
         
         states : a (n,) array
             the set of states
-            
+     
         Returns
         -------
         
@@ -97,7 +103,8 @@ class fittedQ:
         (n,d) = np.shape(states)
         qvals = np.zeros((n, self.na))
         for a in range(self.na):
-            qvals[:,a] = self.Q.predict(normalize(np.concatenate((states, a*np.ones((n,1))),1))).reshape((1,n))
+            #qvals[:,a] = normalize_back_output( self, self.Q.predict(normalize_input(self, np.concatenate((states, a*np.ones((n,1))),1))).reshape((1,n)) )
+            qvals[:,a] =  self.Q.predict(normalize_input(self, np.concatenate((states, a*np.ones((n,1))),1))).reshape((1,n)) 
         gactions = np.argmax(qvals,1)
         values = qvals[(range(n), gactions)]
         return values, gactions
@@ -113,6 +120,30 @@ def normalize(state):
 	#print('max_velo='+str(np.max(state_input[:,1])))
 	state_input[:,2] = (state_input[:,2]/2)-0.5
 	return state_input
+
+
+def normalize_input(self, states_input):
+    states = np.copy(states_input)
+    test = np.mean(states, axis =0)
+    if self.t == 0 :
+        self.mean_states = np.mean(states, axis = 0) # verifier le axis
+        self.std_states = np.std(states, axis = 0)
+    states = (states-self.mean_states)/self.std_states
+    return states 
+
+def normalize_output(self, labels_input, train = True):
+    labels = np.copy(labels_input)
+    if self.t ==0:
+        self.mean_labels = np.mean(labels) # verifier le axis
+        self.std_labels = np.std(labels)
+    labels = (labels-self.mean_labels)/self.std_labels
+    return labels 
+
+def normalize_back_output(self, labels_input):
+    labels = np.copy(labels_input)
+    labels = labels*self.std_labels + self.mean_labels 
+    return labels
+
 
 class LSPI:
     """
@@ -232,7 +263,7 @@ class LSPI:
         """
         Predict values (max_a Q(s,a)) and greedy actions for given states
         
-        Parameters
+        arameters
         ----------
         
         states : a (n,2) array
